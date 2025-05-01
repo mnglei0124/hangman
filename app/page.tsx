@@ -1,103 +1,189 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import StatusBar from "./components/StatusBar";
+import WordDisplay from "./components/WordDisplay";
+import Keyboard from "./components/Keyboard";
+import HintButton from "./components/HintButton";
+import GameStatus from "./components/GameStatus";
+import HowToPlay from "./components/HowToPlay";
+import HangmanDrawing from "./components/HangmanDrawing";
+import { GameStatus as GameStatusType } from "./types";
+import { GAME_LEVELS } from "./data/wordlist";
+
+const MAX_ATTEMPTS = 6;
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
+  const [score, setScore] = useState<number>(0);
+  const [attempts, setAttempts] = useState<number>(MAX_ATTEMPTS);
+  const [word, setWord] = useState<string>("");
+  const [category, setCategory] = useState<string>("");
+  const [guessedLetters, setGuessedLetters] = useState<Set<string>>(new Set());
+  const [gameStatus, setGameStatus] = useState<GameStatusType>("playing");
+  const [incorrectGuesses, setIncorrectGuesses] = useState<number>(0);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const getRandomWord = useCallback((level: number) => {
+    // Find level or default to level 1 if not found
+    const levelIndex = GAME_LEVELS.findIndex((gl) => gl.level === level);
+    const gameLevel =
+      levelIndex >= 0 ? GAME_LEVELS[levelIndex] : GAME_LEVELS[0];
+
+    const randomIndex = Math.floor(Math.random() * gameLevel.words.length);
+    setWord(gameLevel.words[randomIndex]);
+    setCategory(gameLevel.category);
+  }, []);
+
+  const initializeGame = useCallback(() => {
+    setAttempts(MAX_ATTEMPTS);
+    setIncorrectGuesses(0);
+    setGuessedLetters(new Set());
+    setGameStatus("playing");
+    getRandomWord(currentLevel);
+  }, [currentLevel, getRandomWord]);
+
+  useEffect(() => {
+    initializeGame();
+  }, [initializeGame]);
+
+  const getHint = () => {
+    if (attempts <= 1) return;
+
+    const unguessedLetters = word
+      .split("")
+      .filter((letter) => !guessedLetters.has(letter));
+    if (unguessedLetters.length === 0) return;
+
+    const randomIndex = Math.floor(Math.random() * unguessedLetters.length);
+    const hint = unguessedLetters[randomIndex];
+
+    const newGuessedLetters = new Set(guessedLetters);
+    newGuessedLetters.add(hint);
+    setGuessedLetters(newGuessedLetters);
+    setAttempts((prev) => prev - 1);
+  };
+
+  const guessLetter = (letter: string) => {
+    if (gameStatus !== "playing" || guessedLetters.has(letter)) return;
+
+    const newGuessedLetters = new Set(guessedLetters);
+    newGuessedLetters.add(letter);
+    setGuessedLetters(newGuessedLetters);
+
+    if (!word.includes(letter)) {
+      const newAttempts = attempts - 1;
+      setAttempts(newAttempts);
+      setIncorrectGuesses((prev) => prev + 1);
+
+      if (newAttempts === 0) {
+        setGameStatus("lost");
+      }
+    } else {
+      // Check if all letters have been guessed
+      const allLettersGuessed = word
+        .split("")
+        .every((letter) => newGuessedLetters.has(letter));
+
+      if (allLettersGuessed) {
+        const pointsEarned = word.length * 10 - incorrectGuesses * 5;
+        setScore((prev) => prev + pointsEarned);
+        setGameStatus("won");
+      }
+    }
+  };
+
+  const nextLevel = () => {
+    // Check if we have more levels
+    const nextLevelValue = currentLevel + 1;
+    const hasNextLevel = GAME_LEVELS.some(
+      (level) => level.level === nextLevelValue
+    );
+
+    if (hasNextLevel) {
+      setCurrentLevel(nextLevelValue);
+    } else {
+      // Cycle back to level 1 but with increased difficulty (fewer attempts)
+      setCurrentLevel(1);
+    }
+
+    setGameStatus("playing");
+    initializeGame();
+  };
+
+  const restart = () => {
+    setCurrentLevel(1);
+    setScore(0);
+    initializeGame();
+  };
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#f0e6ff] p-4 sm:p-6 md:p-8">
+      <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 w-full max-w-xs sm:max-w-sm md:max-w-xl">
+        <h1 className="text-3xl sm:text-4xl font-bold text-center text-indigo-600 mb-4 sm:mb-6">
+          Hangman
+        </h1>
+
+        <StatusBar
+          level={currentLevel}
+          score={score}
+          attempts={attempts}
+          levelText="Түвшин"
+          scoreText="Оноо"
+          attemptsText="Оролдлого"
+        />
+
+        <HangmanDrawing incorrectGuesses={incorrectGuesses} />
+
+        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          <WordDisplay
+            word={word}
+            guessedLetters={guessedLetters}
+            category={category}
+            categoryText="Ангилал"
+          />
+
+          {gameStatus === "playing" && (
+            <HintButton
+              onHint={getHint}
+              disabled={attempts <= 1}
+              hintText="Тусламж авах (-1 оролдлого)"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          )}
+
+          <GameStatus
+            status={gameStatus}
+            word={word}
+            onNextLevel={nextLevel}
+            onRestart={restart}
+            wonText="Та хожлоо!"
+            lostText="Тоглоом дууслаа! Үг:"
+            nextLevelText="Дараагийн түвшин"
+            playAgainText="Дахин тоглох"
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+        <Keyboard
+          onLetterClick={guessLetter}
+          guessedLetters={guessedLetters}
+          gameStatus={gameStatus}
+          keyboardText="Та гарын товчлуур ашиглан үсэг оруулж болно"
+        />
+      </div>
+
+      <HowToPlay
+        maxAttempts={MAX_ATTEMPTS}
+        titleText="Хэрхэн тоглох вэ"
+        instructionsText={[
+          "Нуугдсан үгийг нэг үсгээр таа",
+          "Буруу таасан үсэг бүр өлгөгдсөн хүний хэсгийг нэмдэг",
+          "Танд өлгөгдсөн хүн бүрэн болохоос өмнө үгийг таах 6 оролдлого байна",
+          "Үг бүрийг амжилттай таасанаар оноо авч, дараагийн түвшинд шилжинэ",
+          "Оноо нь буруу таалтыг багасгах тусам илүү өндөр байна",
+          "Тусламжийг ухаалгаар ашигла - энэ нь 1 оролдлого үнэтэй!",
+          "Илүү хурдан оруулахын тулд гарын товчлуураа ашиглаарай",
+          "Бүх түвшинг дуусгаж, тоглоомыг эзэмшээрэй!",
+        ]}
+      />
+    </main>
   );
 }
