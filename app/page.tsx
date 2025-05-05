@@ -79,9 +79,10 @@ export default function Home() {
         setGameStatus("lost");
       }
     } else {
-      // Check if all letters have been guessed
+      // Check if all letters have been guessed (ignoring spaces)
       const allLettersGuessed = word
         .split("")
+        .filter((char) => char !== " ") // Filter out spaces
         .every((letter) => newGuessedLetters.has(letter));
 
       if (allLettersGuessed) {

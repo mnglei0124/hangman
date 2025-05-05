@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Монгол Өлгөө",
-  description: "Монгол Өлгөө (Hangman) тоглоом",
+  title: "Hangman",
+  description: "Hangman тоглоом",
 };
 
 export default function RootLayout({
